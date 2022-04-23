@@ -1,0 +1,1 @@
+"%~dp0/../../GeoArcSysAIOCLITool.exe" Palette "%~f1" HPL -en Big Endian -bak

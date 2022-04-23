@@ -1,0 +1,1 @@
+"%~dp0/../GeoArcSysAIOCLITool.exe" Crypt "%~f1"

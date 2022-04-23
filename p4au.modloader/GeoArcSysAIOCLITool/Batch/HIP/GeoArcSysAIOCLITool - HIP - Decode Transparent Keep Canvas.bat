@@ -1,0 +1,1 @@
+"%~dp0/../../GeoArcSysAIOCLITool.exe" HIP "%~f1" -t -kc -bak

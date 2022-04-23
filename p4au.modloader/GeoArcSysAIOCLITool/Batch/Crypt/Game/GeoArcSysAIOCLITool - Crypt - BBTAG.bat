@@ -1,0 +1,1 @@
+"%~dp0..\..\..\GeoArcSysAIOCLITool.exe" Crypt "%~f1" -g BBTAG -md5ck "%~dp0..\..\..\Keys\ArcSysMD5Crypt - BBTAG.key" -p "%~dp0..\..\..\Paths\BBTAG Paths.txt" -bak

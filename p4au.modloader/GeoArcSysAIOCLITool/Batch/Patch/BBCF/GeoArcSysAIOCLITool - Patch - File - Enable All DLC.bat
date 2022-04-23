@@ -1,0 +1,1 @@
+"%~dp0/../../../GeoArcSysAIOCLITool.exe" Patch "%~f1" -p ~ead -g BBCF -bak

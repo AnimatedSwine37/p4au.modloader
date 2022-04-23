@@ -1,0 +1,1 @@
+"%~dp0..\..\..\GeoArcSysAIOCLITool.exe" Crypt "%~f1" -g P4U2 -md5ck "%~dp0..\..\..\Keys\ArcSysMD5Crypt - P4U2.key" -p "%~dp0..\..\..\Paths\P4U2 Paths.txt" -bak

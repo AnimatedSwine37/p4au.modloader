@@ -1,0 +1,1 @@
+"%~dp0/../../GeoArcSysAIOCLITool.exe" PAC "%~f1" pack -en Big Endian -bak

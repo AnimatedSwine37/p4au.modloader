@@ -1,0 +1,1 @@
+"%~dp0/../../GeoArcSysAIOCLITool.exe" PS3 "%~f1" -t -d -etoc "./toc.txt"
