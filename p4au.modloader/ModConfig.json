@@ -1,0 +1,20 @@
+{
+  "ModId": "p4au.modloader",
+  "ModName": "Persona 4 Arena Ultimax Mod Loader",
+  "ModAuthor": "AnimatedSwine37",
+  "ModVersion": "1.0.0",
+  "ModDescription": "Makes it so pacs are merged when loading mods using universal file redirector",
+  "ModDll": "p4au.modloader.dll",
+  "ModIcon": "Preview.png",
+  "ModR2RManagedDll32": "",
+  "ModR2RManagedDll64": "",
+  "ModNativeDll32": "",
+  "ModNativeDll64": "",
+  "IsLibrary": false,
+  "ReleaseMetadataFileName": "Sewer56.Update.ReleaseMetadata.json",
+  "PluginData": {},
+  "IsUniversalMod": false,
+  "ModDependencies": [ "reloaded.sharedlib.hooks", "reloaded.universal.redirector" ],
+  "OptionalDependencies": [],
+  "SupportedAppId": ["p4u2.exe"]
+}
