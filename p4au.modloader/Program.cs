@@ -5,9 +5,12 @@ using Reloaded.Mod.Interfaces;
 using Reloaded.Mod.Interfaces.Internal;
 using Reloaded.Universal.Redirector.Interfaces;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 #if DEBUG
 using System.Diagnostics;
+using System.Linq;
 #endif
 
 namespace p4au.modloader
@@ -78,7 +81,16 @@ namespace p4au.modloader
                 Visit https://github.com/Reloaded-Project for additional optional libraries.
             */
             _modLoader.ModLoaded += ModLoaded;
-            _mod = new Mod(_hooks, _logger, _modLoader.GetActiveMods());
+            _mod = new Mod(_hooks, _logger, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"));
+        }
+
+        private List<string> GetActiveModPaths()
+        {
+            List<string> mods = new List<string>();
+            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector"))) {
+                mods.Add(_modLoader.GetDirectoryForModId(mod.Generic.ModId));
+            }
+            return mods;
         }
 
         private void ModLoaded(IModV1 mod, IModConfigV1 modConfig)
