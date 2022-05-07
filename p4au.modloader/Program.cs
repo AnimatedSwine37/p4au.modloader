@@ -57,6 +57,8 @@ namespace p4au.modloader
         /// <summary>
         /// Entry point for your mod.
         /// </summary>
+        /// 
+
         public void StartEx(IModLoaderV1 loaderApi, IModConfigV1 modConfig)
         {
 #if DEBUG
@@ -80,43 +82,34 @@ namespace p4au.modloader
                 Your mod code starts below.
                 Visit https://github.com/Reloaded-Project for additional optional libraries.
             */
-            _modLoader.ModLoaded += ModLoaded;
+
+            // Disable the file redirector so it doesn't redirect files whilst trying to merge them
+            _redirectorController = _modLoader.GetController<IRedirectorController>();
+            if (_redirectorController != null &&
+                _redirectorController.TryGetTarget(out var target))
+            {
+                target.Disable();
+            }
+
             _mod = new Mod(_hooks, _logger, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"));
+            
+            // Re enable the file redirector now that everything's set up
+            if (_redirectorController != null &&
+                _redirectorController.TryGetTarget(out target))
+            {
+                target.Enable();
+            }
         }
 
         private List<string> GetActiveModPaths()
         {
             List<string> mods = new List<string>();
-            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector"))) {
+            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector")))
+            {
                 mods.Add(_modLoader.GetDirectoryForModId(mod.Generic.ModId));
             }
             return mods;
         }
-
-        private void ModLoaded(IModV1 mod, IModConfigV1 modConfig)
-        {
-            if (modConfig.ModId == "reloaded.universal.redirector")
-                SetupEventFromRedirector();
-        }
-
-        private void TargetOnLoading(string path)
-        {
-            //if (_printLoading && !path.Contains("usb#vid") && !path.Contains("hid#vid"))
-            //    _logger.PrintMessage($"RII File Monitor: {path}", _logger.TextColor);
-        }
-
-
-        private void SetupEventFromRedirector()
-        {
-            _redirectorController = _modLoader.GetController<IRedirectorController>();
-            if (_redirectorController != null &&
-                _redirectorController.TryGetTarget(out var target))
-            {
-                //target.
-                //target.Loading += TargetOnLoading;
-            }
-        }
-
 
         private void OnConfigurationUpdated(IConfigurable obj)
         {
