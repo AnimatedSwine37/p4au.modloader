@@ -42,7 +42,8 @@ namespace p4au.modloader.Configuration.Implementation
             _configurations = new IUpdatableConfigurable[]
             {
                 // Add more configurations here if needed.
-                Configurable<Config>.FromFile(Path.Combine(ConfigFolder, "Config.json"), "Default Config")
+                Configurable<Config>.FromFile(Path.Combine(ConfigFolder, "Config.json"), "Default Config"),
+                Configurable<CacheConfig>.FromFile(Path.Combine(ConfigFolder, "Cache.json"), "File Cahce DO NOT TOUCH!!!")
             };
 
             // Add self-updating to configurations.

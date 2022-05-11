@@ -5,13 +5,13 @@
     /// </summary>
     public class FileHashInfo
     {
-        public string Hash { get; set; }
         public string Path { get; set; }
+        public string Hash { get; set; }
 
-        public FileHashInfo(string path, string hash)
+        public FileHashInfo(string Path, string Hash)
         {
-            Hash = hash;
-            Path = path;
+            this.Hash = Hash;
+            this.Path = Path;
         }
 
         public override bool Equals(object? obj)

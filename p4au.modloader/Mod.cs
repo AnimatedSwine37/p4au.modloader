@@ -1,8 +1,10 @@
-﻿using p4au.modloader.Utilities;
+﻿using p4au.modloader.Configuration;
+using p4au.modloader.Utilities;
 using Reloaded.Hooks.ReloadedII.Interfaces;
 using Reloaded.Mod.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -18,11 +20,18 @@ namespace p4au.modloader
     public class Mod
     {
         private string modLoaderPath;
-        public Mod(IReloadedHooks hooks, List<string> activeModPaths, string modLoaderPath)
+        private CacheConfig cache;
+        private List<PacInfo> toCache;
+        public Mod(IReloadedHooks hooks, List<string> activeModPaths, string modLoaderPath, CacheConfig cache)
         {
             this.modLoaderPath = modLoaderPath;
+            this.cache = cache;
+            toCache = new List<PacInfo>();
             var toMerge = GetFilesToMerge(activeModPaths);
             MergeFiles(toMerge);
+            if(toCache.Count > 0)
+                cache.FileCache.AddRange(toCache);
+            cache.Save();
         }
 
         /// <summary>
@@ -140,16 +149,41 @@ namespace p4au.modloader
         /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</returns>
         private Dictionary<string, List<FileHashInfo>> UnpackFilesToMerge(List<string> files, string friendlyPath)
         {           
+            Stopwatch watch = new Stopwatch();
+            watch.Start();
             Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
             foreach (var encryptedFile in files)
             {
+                string encryptedFileHash = GetFileHash(encryptedFile);
+                // Check if this exact file has already been processed in a previous run
+                var cachedInfo = cache.FileCache.FirstOrDefault(f => f.HashInfo.Path == encryptedFile);
+                if (cachedInfo != null && cachedInfo.HashInfo.Hash == encryptedFileHash)
+                {
+                    Utils.LogVerbose($"Skipping {encryptedFile} as it has already been unpacked");
+                    foreach(var file in cachedInfo.ContainedFileHashes)
+                        if (hashes.ContainsKey(file.Key))
+                            hashes[file.Key].Add(file.Value);
+                        else
+                            hashes.Add(file.Key, new List<FileHashInfo> { file.Value });
+                    continue;
+                }
                 DecryptFile(encryptedFile);
                 string pacPath = GetDecryptedPath(encryptedFile, friendlyPath);
                 UnpackPac(pacPath);
                 string unpackedFolder = pacPath.Replace(".pac", "");
                 Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
-                GetFileHashes(unpackedFolder, hashes);
+                var newHashes = GetFileHashes(unpackedFolder, hashes);
+                // Store info about the file that we just processed in the cachje
+                if (cachedInfo != null)
+                {
+                    cachedInfo.HashInfo.Hash = encryptedFileHash;
+                    cachedInfo.ContainedFileHashes = newHashes;
+                }
+                else 
+                    toCache.Add(new PacInfo(newHashes, new FileHashInfo(encryptedFile, encryptedFileHash)));
             }
+            watch.Stop();
+            Utils.LogVerbose($"Finished unpacking files to merge in {watch.ElapsedMilliseconds}ms");
             return hashes;
         }
 
@@ -212,22 +246,25 @@ namespace p4au.modloader
         /// <param name="dir">The directory to search through</param>
         /// <param name="hashes">A Dictionary with the file name (such as "data\char\char_mi_pal\mi00_00.hpl") as the key 
         /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</param>
-        private Dictionary<string, List<FileHashInfo>> GetFileHashes(string dir, Dictionary<string, List<FileHashInfo>> hashes)
+        /// <returns>A separate Dictionary of all of the newly added hashes in the same format as <paramref name="hashes"/></returns>
+        private Dictionary<string, FileHashInfo> GetFileHashes(string dir, Dictionary<string, List<FileHashInfo>> hashes)
         {
+            Stopwatch watch = Stopwatch.StartNew();
+            Dictionary<string, FileHashInfo> newHashes = new();
             foreach (var file in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
             {
                 string hash = GetFileHash(file);
                 string relativePath = GetDataPath(file);
                 if (hashes.ContainsKey(relativePath))
-                {
                     hashes[relativePath].Add(new FileHashInfo(file, hash));
-                }
                 else
-                {
                     hashes.Add(relativePath, new List<FileHashInfo> { new FileHashInfo(file, hash) });
-                }
+
+                newHashes.Add(relativePath, new FileHashInfo(file, hash));
             }
-            return hashes;
+            watch.Stop();
+            Utils.LogVerbose($"Finished calculating {Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories).Length} file hashes in {watch.ElapsedMilliseconds}ms");
+            return newHashes;
         }
 
         /// <summary>

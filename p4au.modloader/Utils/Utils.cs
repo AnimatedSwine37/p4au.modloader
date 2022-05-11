@@ -25,10 +25,15 @@ namespace p4au.modloader.Utilities
 
         public static void LogVerbose(string message)
         {
-            if(config.Verbose)
+            if (config.Verbose)
             {
-                logger.WriteLine(message);
+                Log(message);
             }
+        }
+
+        public static void Log(string message)
+        {
+            logger.WriteLine($"[ModLoader] {message}");
         }
     }
 }

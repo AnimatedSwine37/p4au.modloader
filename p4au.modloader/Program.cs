@@ -56,6 +56,11 @@ namespace p4au.modloader
         private WeakReference<IRedirectorController> _redirectorController = null!;
 
         /// <summary>
+        /// Stores file cache information to speed up merging
+        /// </summary>
+        private CacheConfig _cacheConfig = null!;
+
+        /// <summary>
         /// Entry point for your mod.
         /// </summary>
         /// 
@@ -78,6 +83,7 @@ namespace p4au.modloader
             var configurator = new Configurator(_modLoader.GetModConfigDirectory(_modConfig.ModId));
             _configuration = configurator.GetConfiguration<Config>(0);
             _configuration.ConfigurationUpdated += OnConfigurationUpdated;
+            _cacheConfig = configurator.GetConfiguration<CacheConfig>(1);
 
             /*
                 Your mod code starts below.
@@ -94,7 +100,7 @@ namespace p4au.modloader
 
             Utils.Initialise(_logger, _configuration);
 
-            _mod = new Mod(_hooks, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"));
+            _mod = new Mod(_hooks, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"), _cacheConfig);
             
             // Re enable the file redirector now that everything's set up
             if (_redirectorController != null &&
