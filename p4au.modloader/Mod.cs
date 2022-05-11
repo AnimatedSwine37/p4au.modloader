@@ -1,7 +1,6 @@
-﻿using p4au.modloader.Utils;
+﻿using p4au.modloader.Utilities;
 using Reloaded.Hooks.ReloadedII.Interfaces;
 using Reloaded.Mod.Interfaces;
-using Reloaded.Mod.Interfaces.Internal;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,16 +18,10 @@ namespace p4au.modloader
     public class Mod
     {
         private string modLoaderPath;
-        private ILogger logger;
-        public Mod(IReloadedHooks hooks, ILogger logger, List<string> activeModPaths, string modLoaderPath)
+        public Mod(IReloadedHooks hooks, List<string> activeModPaths, string modLoaderPath)
         {
             this.modLoaderPath = modLoaderPath;
-            this.logger = logger;
             var toMerge = GetFilesToMerge(activeModPaths);
-            foreach (var file in toMerge)
-                foreach (var filePath in file.Value)
-                    logger.WriteLine(filePath);
-
             MergeFiles(toMerge);
         }
 
@@ -67,86 +60,107 @@ namespace p4au.modloader
             return toMerge;
         }
 
-        private void MergeFiles(Dictionary<string, List<string>> toMerge)
+        private void SetupDirectories()
         {
             if (!Directory.Exists("originals"))
                 Directory.CreateDirectory("originals");
             string redirectorPath = Path.Combine(modLoaderPath, "Redirector", "asset");
             if (Directory.Exists(redirectorPath))
                 Directory.Delete(redirectorPath, true);
-           Directory.CreateDirectory(redirectorPath);
+            Directory.CreateDirectory(redirectorPath);
             if (Directory.Exists("merged"))
                 Directory.Delete("merged", true);
             Directory.CreateDirectory("merged");
+        }
+
+        private void MergeFiles(Dictionary<string, List<string>> toMerge)
+        {
+            SetupDirectories();
             var paths = GetPaths();
-            List<string> decryptList = new List<string>();
             Parallel.ForEach(toMerge, mergeSet =>
             {
+                // Ignore files that aren't used in P4AU
                 if (!paths.Any(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)))
                 {
-                    //logger.WriteLine($"{mergeSet.Key} is not a valid file name, ignoring");
                     return;
                 }
-                // Get a copy of the original file and decrypt it
-                string originalPath = Path.Combine("originals", mergeSet.Key);
-                File.Copy(Path.Combine("asset", mergeSet.Key), originalPath, true);
-                DecryptFile(originalPath);
-                // Get the friendly name of the encrypted file
-                string friendlyPath = paths.First(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)).filepath;
-                logger.WriteLine($"{mergeSet.Key} => {friendlyPath}");
-                if (Path.GetExtension(friendlyPath) != ".pac")
-                {
-                    logger.WriteLine($"Skipping {friendlyPath} as it is not a pac");
+
+                string? friendlyPath = UnpackOriginals(mergeSet, paths);
+                if (friendlyPath == null)
                     return;
-                }
-                // Unpack the original file
-                string originalDecryptedPath = Path.Combine("originals", friendlyPath);
-                UnpackPac(originalDecryptedPath);
-                UnpackPac(Path.ChangeExtension(originalDecryptedPath, null));
-                Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
+
                 // Decrypt and unpack the files
+                Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
                 foreach (var encryptedFile in mergeSet.Value)
                 {
                     DecryptFile(encryptedFile);
                     string pacPath = GetDecryptedPath(encryptedFile, friendlyPath);
                     UnpackPac(pacPath);
                     string unpackedFolder = pacPath.Replace(".pac", "");
-                    logger.WriteLine($"The unpacked folder is at {unpackedFolder}");
+                    Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
                     GetFileHashes(unpackedFolder, hashes);
                 }
 
                 // Compare the files with the originals
                 bool repack = false;
-                foreach(var fileSet in hashes)
+                foreach (var fileSet in hashes)
                 {
                     // Get the original hash
                     string originalFile = Path.Combine("originals", fileSet.Key);
                     string originalHash = GetFileHash(originalFile);
                     // Compare each file to merge with the originals
-                    foreach(var file in fileSet.Value)
+                    foreach (var file in fileSet.Value)
                     {
-                        if(file.Hash != originalHash)
+                        if (file.Hash != originalHash)
                         {
                             repack = true;
                             // Copy the edited file to our folder of files to merge
                             string mergedPath = Path.Combine("merged", fileSet.Key);
-                            Directory.CreateDirectory(Path.GetDirectoryName(mergedPath));
+                            Directory.CreateDirectory(Path.GetDirectoryName(mergedPath)!);
                             File.Copy(file.Path, mergedPath, true);
-                            logger.WriteLine($"Going to merge {file.Path}");
+                            Utils.LogVerbose($"Going to merge {file.Path}");
                         }
                     }
                 }
-                
-                if(repack)
+
+                if (repack)
                 {
                     // Repack the now merged pack directory
                     string mergedPac = RepackDirectory(friendlyPath);
                     // Copy the pac into the redirector of this mod renaming it to its encrypted name so it's picked up
                     EncryptFile(mergedPac);
-                    File.Copy(Path.Combine("merged", Path.GetDirectoryName(friendlyPath)!, mergeSet.Key), Path.Combine(redirectorPath, mergeSet.Key), true);
+                    File.Copy(Path.Combine("merged", Path.GetDirectoryName(friendlyPath)!, mergeSet.Key), Path.Combine(Path.Combine(modLoaderPath, "Redirector", "asset"), mergeSet.Key), true);
                 }
 
             });
+        }
+
+        /// <summary>
+        /// Unpack any needed original files for the current set of files that are being merged
+        /// </summary>
+        /// <param name="mergeSet"></param>
+        /// <param name="paths"></param>
+        /// <returns>The friendly path to the file that was unpacked or null if the file wasn't a pac (so it shouldn't be considered for merging)</returns>
+        private string? UnpackOriginals(KeyValuePair<string, List<string>> mergeSet, List<FilePaths> paths)
+        {
+            // Get the friendly name of the encrypted file
+            string friendlyPath = paths.First(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)).filepath;
+            string originalPath = Path.Combine("originals", mergeSet.Key);
+            if (File.Exists(originalPath))
+                return friendlyPath;
+            // Get a copy of the original file and decrypt it
+            File.Copy(Path.Combine("asset", mergeSet.Key), originalPath, true);
+            DecryptFile(originalPath);
+            if (Path.GetExtension(friendlyPath) != ".pac")
+            {
+                Utils.LogVerbose($"Skipping {friendlyPath} as it is not a pac");
+                return null;
+            }
+            // Unpack the original file
+            string originalDecryptedPath = Path.Combine("originals", friendlyPath);
+            UnpackPac(originalDecryptedPath);
+            UnpackPac(Path.ChangeExtension(originalDecryptedPath, null));
+            return friendlyPath;
         }
 
         /// <summary>
@@ -182,11 +196,11 @@ namespace p4au.modloader
         /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</param>
         private Dictionary<string, List<FileHashInfo>> GetFileHashes(string dir, Dictionary<string, List<FileHashInfo>> hashes)
         {
-            foreach(var file in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
+            foreach (var file in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
             {
                 string hash = GetFileHash(file);
                 string relativePath = GetDataPath(file);
-                if(hashes.ContainsKey(relativePath))
+                if (hashes.ContainsKey(relativePath))
                 {
                     hashes[relativePath].Add(new FileHashInfo(file, hash));
                 }
@@ -215,7 +229,7 @@ namespace p4au.modloader
         private void PackDirectory(string directory)
         {
             RunArcSysCommand($"pac \"{directory}\" -om Overwrite -c");
-            logger.WriteLine($"Packed {directory}");
+            Utils.LogVerbose($"Packed {directory}");
         }
 
         /// <summary>
@@ -225,7 +239,7 @@ namespace p4au.modloader
         private void UnpackPac(string pac)
         {
             RunArcSysCommand($"pac \"{pac}\" unpack -om Overwrite -c");
-            logger.WriteLine($"Unpacked {pac}");
+            Utils.LogVerbose($"Unpacked {pac}");
         }
 
         /// <summary>
@@ -235,7 +249,7 @@ namespace p4au.modloader
         private void DecryptFile(string file)
         {
             RunArcSysCommand($"crypt \"{file}\" -g p4u2 -om Overwrite -c -p \"{Path.Combine(modLoaderPath, "GeoArcSysAIOCLITool", "Paths", "P4U2 Paths.txt")}\"");
-            logger.WriteLine($"Decrypted {file}");
+            Utils.LogVerbose($"Decrypted {file}");
         }
 
         /// <summary>
@@ -245,7 +259,7 @@ namespace p4au.modloader
         private void EncryptFile(string file)
         {
             RunArcSysCommand($"crypt \"{file}\" -g p4u2 -om Overwrite -c");
-            logger.WriteLine($"Decrypted {file}");
+            Utils.LogVerbose($"Encrypted {file}");
         }
 
         private void RunArcSysCommand(string args, bool displayOutput = false)
@@ -262,8 +276,8 @@ namespace p4au.modloader
             while (!process.StandardOutput.EndOfStream)
             {
                 string? line = process.StandardOutput.ReadLine();
-                if(displayOutput)
-                    logger.WriteLine(line);
+                if (displayOutput)
+                    Utils.LogVerbose(line);
                 if (line != null && line == "Complete!")
                     process.Kill();
             }
