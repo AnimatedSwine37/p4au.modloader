@@ -81,49 +81,15 @@ namespace p4au.modloader
             {
                 // Ignore files that aren't used in P4AU
                 if (!paths.Any(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)))
-                {
                     return;
-                }
 
-                string? friendlyPath = UnpackOriginals(mergeSet, paths);
+                string? friendlyPath = UnpackOriginals(mergeSet.Key, paths);
                 if (friendlyPath == null)
                     return;
 
-                // Decrypt and unpack the files
-                Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
-                foreach (var encryptedFile in mergeSet.Value)
-                {
-                    DecryptFile(encryptedFile);
-                    string pacPath = GetDecryptedPath(encryptedFile, friendlyPath);
-                    UnpackPac(pacPath);
-                    string unpackedFolder = pacPath.Replace(".pac", "");
-                    Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
-                    GetFileHashes(unpackedFolder, hashes);
-                }
+                var hashes = UnpackFilesToMerge(mergeSet.Value, friendlyPath);
 
-                // Compare the files with the originals
-                bool repack = false;
-                foreach (var fileSet in hashes)
-                {
-                    // Get the original hash
-                    string originalFile = Path.Combine("originals", fileSet.Key);
-                    string originalHash = GetFileHash(originalFile);
-                    // Compare each file to merge with the originals
-                    foreach (var file in fileSet.Value)
-                    {
-                        if (file.Hash != originalHash)
-                        {
-                            repack = true;
-                            // Copy the edited file to our folder of files to merge
-                            string mergedPath = Path.Combine("merged", fileSet.Key);
-                            Directory.CreateDirectory(Path.GetDirectoryName(mergedPath)!);
-                            File.Copy(file.Path, mergedPath, true);
-                            Utils.LogVerbose($"Going to merge {file.Path}");
-                        }
-                    }
-                }
-
-                if (repack)
+                if (CompareFiles(hashes))
                 {
                     // Repack the now merged pack directory
                     string mergedPac = RepackDirectory(friendlyPath);
@@ -131,8 +97,60 @@ namespace p4au.modloader
                     EncryptFile(mergedPac);
                     File.Copy(Path.Combine("merged", Path.GetDirectoryName(friendlyPath)!, mergeSet.Key), Path.Combine(Path.Combine(modLoaderPath, "Redirector", "asset"), mergeSet.Key), true);
                 }
-
             });
+        }
+
+        /// <summary>
+        /// Compares the files from a dictionary of them, preparing any that should be merged
+        /// </summary>
+        /// <param name="hashes">A Dictionary with the file name (such as "data\char\char_mi_pal\mi00_00.hpl") as the key 
+        /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</param>
+        /// <returns>True if there were files that need to be merged, false otherwise</returns>
+        private bool CompareFiles(Dictionary<string, List<FileHashInfo>> hashes)
+        {
+            bool repack = false;
+            foreach (var fileSet in hashes)
+            {
+                // Get the original hash
+                string originalFile = Path.Combine("originals", fileSet.Key);
+                string originalHash = GetFileHash(originalFile);
+                // Compare each file to merge with the originals
+                foreach (var file in fileSet.Value)
+                {
+                    if (file.Hash != originalHash)
+                    {
+                        repack = true;
+                        // Copy the edited file to our folder of files to merge
+                        string mergedPath = Path.Combine("merged", fileSet.Key);
+                        Directory.CreateDirectory(Path.GetDirectoryName(mergedPath)!);
+                        File.Copy(file.Path, mergedPath, true);
+                        Utils.LogVerbose($"Going to merge {file.Path}");
+                    }
+                }
+            }
+            return repack;
+        }
+
+        /// <summary>
+        /// Unpacks the files that are going to be merged
+        /// </summary>
+        /// <param name="files">The files to unpack</param>
+        /// <param name="friendlyPath">The friendly path of the pac that contains the files</param>
+        /// <returns>A Dictionary with the file name (such as "data\char\char_mi_pal\mi00_00.hpl") as the key 
+        /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</returns>
+        private Dictionary<string, List<FileHashInfo>> UnpackFilesToMerge(List<string> files, string friendlyPath)
+        {           
+            Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
+            foreach (var encryptedFile in files)
+            {
+                DecryptFile(encryptedFile);
+                string pacPath = GetDecryptedPath(encryptedFile, friendlyPath);
+                UnpackPac(pacPath);
+                string unpackedFolder = pacPath.Replace(".pac", "");
+                Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
+                GetFileHashes(unpackedFolder, hashes);
+            }
+            return hashes;
         }
 
         /// <summary>
@@ -141,15 +159,15 @@ namespace p4au.modloader
         /// <param name="mergeSet"></param>
         /// <param name="paths"></param>
         /// <returns>The friendly path to the file that was unpacked or null if the file wasn't a pac (so it shouldn't be considered for merging)</returns>
-        private string? UnpackOriginals(KeyValuePair<string, List<string>> mergeSet, List<FilePaths> paths)
+        private string? UnpackOriginals(string encryptedFile, List<FilePaths> paths)
         {
             // Get the friendly name of the encrypted file
-            string friendlyPath = paths.First(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)).filepath;
-            string originalPath = Path.Combine("originals", mergeSet.Key);
+            string friendlyPath = paths.First(p => p.filepathMD5.Equals(encryptedFile, StringComparison.InvariantCultureIgnoreCase)).filepath;
+            string originalPath = Path.Combine("originals", encryptedFile);
             if (File.Exists(originalPath))
                 return friendlyPath;
             // Get a copy of the original file and decrypt it
-            File.Copy(Path.Combine("asset", mergeSet.Key), originalPath, true);
+            File.Copy(Path.Combine("asset", encryptedFile), originalPath, true);
             DecryptFile(originalPath);
             if (Path.GetExtension(friendlyPath) != ".pac")
             {
