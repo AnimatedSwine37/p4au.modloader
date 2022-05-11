@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO;
 
-namespace p4au.modloader.Utils
+namespace p4au.modloader.Utilities
 {
     public static class FileUtils
     {

@@ -1,5 +1,6 @@
 ﻿using p4au.modloader.Configuration;
 using p4au.modloader.Configuration.Implementation;
+using p4au.modloader.Utilities;
 using Reloaded.Hooks.ReloadedII.Interfaces;
 using Reloaded.Mod.Interfaces;
 using Reloaded.Mod.Interfaces.Internal;
@@ -91,7 +92,9 @@ namespace p4au.modloader
                 target.Disable();
             }
 
-            _mod = new Mod(_hooks, _logger, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"));
+            Utils.Initialise(_logger, _configuration);
+
+            _mod = new Mod(_hooks, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"));
             
             // Re enable the file redirector now that everything's set up
             if (_redirectorController != null &&
