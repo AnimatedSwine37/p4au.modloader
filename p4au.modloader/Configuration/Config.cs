@@ -15,34 +15,9 @@ namespace p4au.modloader.Configuration
         */
 
 
-        [DisplayName("String")]
-        [Description("This is a string.")]
-        public string String { get; set; } = "Default Name";
+        [DisplayName("Verbose Mode")]
+        [Description("Logs lots of internal events")]
+        public bool Verbose { get; set; } = false;
 
-        [DisplayName("Int")]
-        [Description("This is an int.")]
-        public int Integer { get; set; } = 42;
-
-        [DisplayName("Bool")]
-        [Description("This is a bool.")]
-        public bool Boolean { get; set; } = true;
-
-        [DisplayName("Float")]
-        [Description("This is a floating point number.")]
-        public float Float { get; set; } = 6.987654F;
-
-        [DisplayName("Enum")]
-        [Description("This is an enumerable.")]
-        public SampleEnum Reloaded { get; set; } = SampleEnum.ILoveIt;
-
-        public enum SampleEnum
-        {
-            NoOpinion,
-            Sucks,
-            IsMediocre,
-            IsOk,
-            IsCool,
-            ILoveIt
-        }
     }
 }
