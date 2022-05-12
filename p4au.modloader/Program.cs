@@ -7,6 +7,7 @@ using Reloaded.Mod.Interfaces.Internal;
 using Reloaded.Universal.Redirector.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 #if DEBUG
@@ -60,6 +61,8 @@ namespace p4au.modloader
         /// </summary>
         private CacheConfig _cacheConfig = null!;
 
+        private string _modLoaderPath = null!;
+
         /// <summary>
         /// Entry point for your mod.
         /// </summary>
@@ -100,20 +103,69 @@ namespace p4au.modloader
 
             Utils.Initialise(_logger, _configuration);
 
-            _mod = new Mod(GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"), _cacheConfig);
+            List<string> activeModPaths = GetActiveModPaths();
+            _modLoaderPath = _modLoader.GetDirectoryForModId("p4au.modloader");
+            _mod = new Mod(activeModPaths, _modLoaderPath, _cacheConfig);
+            _modLoader.ModLoaded += ModLoaded;
             
             // Re enable the file redirector now that everything's set up
             if (_redirectorController != null &&
                 _redirectorController.TryGetTarget(out target))
             {
                 target.Enable();
+                RemoveDuplicateRedirects(activeModPaths);
             }
+        }
+
+        private void ModLoaded(IModV1 mod, IModConfigV1 modConfig)
+        {
+            if(modConfig.ModId != "p4au.modloader" && modConfig.ModDependencies.Contains("reloaded.universal.redirector"))
+            {
+                RemoveDuplicateRedirects(_modLoader.GetDirectoryForModId(modConfig.ModId));
+            }
+        }
+
+        /// <summary>
+        /// Removes any files that might be redirected instead of those in the mod loader's folder from a list of mod paths (so higher priority mods don't break it)
+        /// </summary>
+        /// <param name="activeModPaths">A List of all of the active mod's paths</param>
+        private void RemoveDuplicateRedirects(List<string> activeModPaths)
+        {
+            foreach (var modDir in activeModPaths)
+            {
+                RemoveDuplicateRedirects(modDir);
+            }
+        }
+
+        /// <summary>
+        ///  Removes any files that might be redirected instead of those in the mod loader's folder (so higher priority mods don't break it)
+        /// </summary>
+        /// <param name="modPath">The path to the mod dir that will be checked for duplicate redirects</param>
+        private void RemoveDuplicateRedirects(string modPath)
+        {
+            string modName = Path.GetFileName(modPath);
+            Utils.LogVerbose($"Removing duplicate redirects from {modName}");
+            _redirectorController.TryGetTarget(out var target);
+            if (target == null)
+                return;
+            string assetPath = Path.Combine(modPath, "Redirector", "asset");
+            if (!Directory.Exists(assetPath))
+                return;
+            string modLoaderAssets = Path.Combine(_modLoaderPath, "Redirector", "asset");
+            foreach (var file in Directory.GetFiles(assetPath))
+            {
+                if (File.Exists(Path.Combine(modLoaderAssets, Path.GetFileName(file))))
+                {
+                    target.RemoveRedirect(file);
+                }
+            }
+            Utils.LogVerbose($"Done removing duplicate redirects from {modName}");
         }
 
         private List<string> GetActiveModPaths()
         {
             List<string> mods = new List<string>();
-            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector")))
+            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector") && m.Generic.ModId != "p4au.modloader"))
             {
                 mods.Add(_modLoader.GetDirectoryForModId(mod.Generic.ModId));
             }
