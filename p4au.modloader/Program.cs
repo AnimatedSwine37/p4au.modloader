@@ -113,7 +113,7 @@ namespace p4au.modloader
         private List<string> GetActiveModPaths()
         {
             List<string> mods = new List<string>();
-            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector")))
+            foreach (var mod in _modLoader.GetActiveMods().Where(m => m.Generic.ModDependencies.Contains("reloaded.universal.redirector") && m.Generic.ModId != "p4au.modloader"))
             {
                 mods.Add(_modLoader.GetDirectoryForModId(mod.Generic.ModId));
             }
