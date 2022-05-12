@@ -22,16 +22,45 @@ namespace p4au.modloader
         private string modLoaderPath;
         private CacheConfig cache;
         private List<PacInfo> toCache;
-        public Mod(IReloadedHooks hooks, List<string> activeModPaths, string modLoaderPath, CacheConfig cache)
+        public Mod(List<string> activeModPaths, string modLoaderPath, CacheConfig cache)
         {
             this.modLoaderPath = modLoaderPath;
             this.cache = cache;
             toCache = new List<PacInfo>();
+            Utils.Log($"Finding files to merge");
             var toMerge = GetFilesToMerge(activeModPaths);
+            Utils.Log($"Done finding files to merge");
+            if (MergeSetIsEqual(toMerge, cache.LastModSetFiles))
+            {
+                Utils.Log($"The current mod set is the same as the last built one, skipping rebuild");
+                return;
+            }
+            Utils.Log("Beginning file merging");
             MergeFiles(toMerge);
             if(toCache.Count > 0)
                 cache.FileCache.AddRange(toCache);
+            cache.LastModSetFiles = toMerge;
             cache.Save();
+            Utils.Log("Finished merging and redirecting files");
+        }
+
+        /// <summary>
+        /// Checks if two Dictionaries of files and hash info are equal (if two merge builds are the same)
+        /// </summary>
+        /// <param name="a">The first set of files to compare to <paramref name="b"/></param>
+        /// <param name="b">The second set of files that will be compared</param>
+        /// <returns>True if both sets are exactly the same</returns>
+        private bool MergeSetIsEqual(Dictionary<string, List<FileHashInfo>> a, Dictionary<string, List<FileHashInfo>> b)
+        {
+            foreach(var set in a)
+            {
+                if (!b.TryGetValue(set.Key, out var filesB))
+                    return false;
+                foreach (var file in set.Value)
+                    if (!filesB.Contains(file))
+                        return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -39,7 +68,7 @@ namespace p4au.modloader
         /// </summary>
         /// <param name="activeModPaths">A list of the paths to every active mod</param>
         /// <returns>A Dictionary with the name of the file as the key and a list of all the occurences of the file as the value</returns>
-        private Dictionary<string, List<string>> GetFilesToMerge(List<string> activeModPaths)
+        private Dictionary<string, List<FileHashInfo>> GetFilesToMerge(List<string> activeModPaths)
         {
             // Get all files
             List<string> allFiles = new List<string>();
@@ -55,7 +84,7 @@ namespace p4au.modloader
             }
 
             // Get files that appear in multiple mods
-            Dictionary<string, List<string>> toMerge = new Dictionary<string, List<string>>();
+            Dictionary<string, List<FileHashInfo>> toMerge = new Dictionary<string, List<FileHashInfo>>();
             foreach (var file in allFiles)
             {
                 if (toMerge.ContainsKey(Path.GetFileName(file)))
@@ -63,7 +92,8 @@ namespace p4au.modloader
                 var matchingFiles = allFiles.FindAll(f => f.EndsWith(Path.GetFileName(file)));
                 if (matchingFiles.Count > 1)
                 {
-                    toMerge.Add(Path.GetFileName(file), matchingFiles);
+                    List<FileHashInfo> fileHashes = GetFileHashes(matchingFiles);
+                    toMerge.Add(Path.GetFileName(file), fileHashes);
                 }
             }
             return toMerge;
@@ -82,19 +112,26 @@ namespace p4au.modloader
             Directory.CreateDirectory("merged");
         }
 
-        private void MergeFiles(Dictionary<string, List<string>> toMerge)
+        private void MergeFiles(Dictionary<string, List<FileHashInfo>> toMerge)
         {
             SetupDirectories();
             var paths = GetPaths();
             Parallel.ForEach(toMerge, mergeSet =>
             {
+                Utils.LogVerbose($"Beginning merging of {mergeSet.Key}");
                 // Ignore files that aren't used in P4AU
                 if (!paths.Any(p => p.filepathMD5.Equals(mergeSet.Key, StringComparison.InvariantCultureIgnoreCase)))
+                {
+                    Utils.LogVerbose($"Cancelling merging {mergeSet.Key} as it is not a valid P4AU file");
                     return;
+                }
 
                 string? friendlyPath = UnpackOriginals(mergeSet.Key, paths);
                 if (friendlyPath == null)
+                {
+                    Utils.LogVerbose($"Cancelling merging {mergeSet.Key} as it is not a valid P4AU file");
                     return;
+                }
 
                 var hashes = UnpackFilesToMerge(mergeSet.Value, friendlyPath);
 
@@ -106,6 +143,7 @@ namespace p4au.modloader
                     EncryptFile(mergedPac);
                     File.Copy(Path.Combine("merged", Path.GetDirectoryName(friendlyPath)!, mergeSet.Key), Path.Combine(Path.Combine(modLoaderPath, "Redirector", "asset"), mergeSet.Key), true);
                 }
+                Utils.LogVerbose($"Done merging {mergeSet.Key}");
             });
         }
 
@@ -133,7 +171,6 @@ namespace p4au.modloader
                         string mergedPath = Path.Combine("merged", fileSet.Key);
                         Directory.CreateDirectory(Path.GetDirectoryName(mergedPath)!);
                         File.Copy(file.Path, mergedPath, true);
-                        Utils.LogVerbose($"Going to merge {file.Path}");
                     }
                 }
             }
@@ -147,17 +184,17 @@ namespace p4au.modloader
         /// <param name="friendlyPath">The friendly path of the pac that contains the files</param>
         /// <returns>A Dictionary with the file name (such as "data\char\char_mi_pal\mi00_00.hpl") as the key 
         /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</returns>
-        private Dictionary<string, List<FileHashInfo>> UnpackFilesToMerge(List<string> files, string friendlyPath)
-        {           
+        private Dictionary<string, List<FileHashInfo>> UnpackFilesToMerge(List<FileHashInfo> files, string friendlyPath)
+        {
+            Utils.LogVerbose($"Starting to unpack files for {friendlyPath}");
             Stopwatch watch = new Stopwatch();
             watch.Start();
             Dictionary<string, List<FileHashInfo>> hashes = new Dictionary<string, List<FileHashInfo>>();
             foreach (var encryptedFile in files)
             {
-                string encryptedFileHash = GetFileHash(encryptedFile);
                 // Check if this exact file has already been processed in a previous run
-                var cachedInfo = cache.FileCache.FirstOrDefault(f => f.HashInfo.Path == encryptedFile);
-                if (cachedInfo != null && cachedInfo.HashInfo.Hash == encryptedFileHash)
+                var cachedInfo = cache.FileCache.FirstOrDefault(f => f.HashInfo.Path == encryptedFile.Path);
+                if (cachedInfo != null && cachedInfo.HashInfo.Hash == encryptedFile.Hash)
                 {
                     Utils.LogVerbose($"Skipping {encryptedFile} as it has already been unpacked");
                     foreach(var file in cachedInfo.ContainedFileHashes)
@@ -167,23 +204,23 @@ namespace p4au.modloader
                             hashes.Add(file.Key, new List<FileHashInfo> { file.Value });
                     continue;
                 }
-                DecryptFile(encryptedFile);
-                string pacPath = GetDecryptedPath(encryptedFile, friendlyPath);
+                DecryptFile(encryptedFile.Path);
+                string pacPath = GetDecryptedPath(encryptedFile.Path, friendlyPath);
                 UnpackPac(pacPath);
                 string unpackedFolder = pacPath.Replace(".pac", "");
                 Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
-                var newHashes = GetFileHashes(unpackedFolder, hashes);
+                var newHashes = GetAllFileHashes(unpackedFolder, hashes);
                 // Store info about the file that we just processed in the cachje
                 if (cachedInfo != null)
                 {
-                    cachedInfo.HashInfo.Hash = encryptedFileHash;
+                    cachedInfo.HashInfo.Hash = encryptedFile.Hash;
                     cachedInfo.ContainedFileHashes = newHashes;
                 }
                 else 
-                    toCache.Add(new PacInfo(newHashes, new FileHashInfo(encryptedFile, encryptedFileHash)));
+                    toCache.Add(new PacInfo(newHashes, encryptedFile));
             }
             watch.Stop();
-            Utils.LogVerbose($"Finished unpacking files to merge in {watch.ElapsedMilliseconds}ms");
+            Utils.LogVerbose($"Finished unpacking files for {friendlyPath} in {watch.ElapsedMilliseconds}ms");
             return hashes;
         }
 
@@ -247,7 +284,7 @@ namespace p4au.modloader
         /// <param name="hashes">A Dictionary with the file name (such as "data\char\char_mi_pal\mi00_00.hpl") as the key 
         /// and a list of <see cref="FileHashInfo"/> representing the copies of that file from different mods</param>
         /// <returns>A separate Dictionary of all of the newly added hashes in the same format as <paramref name="hashes"/></returns>
-        private Dictionary<string, FileHashInfo> GetFileHashes(string dir, Dictionary<string, List<FileHashInfo>> hashes)
+        private Dictionary<string, FileHashInfo> GetAllFileHashes(string dir, Dictionary<string, List<FileHashInfo>> hashes)
         {
             Stopwatch watch = Stopwatch.StartNew();
             Dictionary<string, FileHashInfo> newHashes = new();
@@ -265,6 +302,18 @@ namespace p4au.modloader
             watch.Stop();
             Utils.LogVerbose($"Finished calculating {Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories).Length} file hashes in {watch.ElapsedMilliseconds}ms");
             return newHashes;
+        }
+
+        /// <summary>
+        /// Gets a list containing the <see cref="FileHashInfo"/> for every file in the supplied list of files
+        /// </summary>
+        /// <param name="files">A <see cref="List{String}"/> of full file paths that willl be used</param>
+        /// <returns>A List containing a <see cref="FileHashInfo"/> for every file listed in <paramref name="files"/></returns>
+        private List<FileHashInfo> GetFileHashes(List<string> files)
+        {
+            List<FileHashInfo> hashes = new List<FileHashInfo>();
+            Parallel.ForEach(files, file => hashes.Add(new FileHashInfo(file, GetFileHash(file))));
+            return hashes;
         }
 
         /// <summary>

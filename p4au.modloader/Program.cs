@@ -100,7 +100,7 @@ namespace p4au.modloader
 
             Utils.Initialise(_logger, _configuration);
 
-            _mod = new Mod(_hooks, GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"), _cacheConfig);
+            _mod = new Mod(GetActiveModPaths(), _modLoader.GetDirectoryForModId("p4au.modloader"), _cacheConfig);
             
             // Re enable the file redirector now that everything's set up
             if (_redirectorController != null &&
