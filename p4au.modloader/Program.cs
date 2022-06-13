@@ -118,6 +118,7 @@ namespace p4au.modloader
             if (_redirectorController != null &&
                 _redirectorController.TryGetTarget(out target))
             {
+                target.AddRedirectFolder(Path.Combine(_modLoaderPath, "Redirector"));
                 target.Enable();
                 RemoveDuplicateRedirects(activeModPaths);
             }
