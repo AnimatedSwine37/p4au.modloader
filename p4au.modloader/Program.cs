@@ -93,6 +93,15 @@ namespace p4au.modloader
                 Visit https://github.com/Reloaded-Project for additional optional libraries.
             */
 
+
+            Utils.Initialise(_logger, _configuration);
+
+            //_modLoader.ModLoaded += ModLoaded;
+            _modLoader.OnModLoaderInitialized += ModLoaderInitialised;
+        }
+
+        private void ModLoaderInitialised()
+        {
             // Disable the file redirector so it doesn't redirect files whilst trying to merge them
             _redirectorController = _modLoader.GetController<IRedirectorController>();
             if (_redirectorController != null &&
@@ -101,13 +110,10 @@ namespace p4au.modloader
                 target.Disable();
             }
 
-            Utils.Initialise(_logger, _configuration);
-
             List<string> activeModPaths = GetActiveModPaths();
             _modLoaderPath = _modLoader.GetDirectoryForModId("p4au.modloader");
             _mod = new Mod(activeModPaths, _modLoaderPath, _cacheConfig);
-            _modLoader.ModLoaded += ModLoaded;
-            
+
             // Re enable the file redirector now that everything's set up
             if (_redirectorController != null &&
                 _redirectorController.TryGetTarget(out target))
