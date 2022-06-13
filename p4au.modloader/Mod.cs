@@ -214,7 +214,7 @@ namespace p4au.modloader
                 string unpackedFolder = pacPath.Replace(".pac", "");
                 Utils.LogVerbose($"The unpacked folder is at {unpackedFolder}");
                 var newHashes = GetAllFileHashes(unpackedFolder, hashes);
-                // Store info about the file that we just processed in the cachje
+                // Store info about the file that we just processed in the cache
                 if (cachedInfo != null)
                 {
                     cachedInfo.HashInfo.Hash = encryptedFile.Hash;
