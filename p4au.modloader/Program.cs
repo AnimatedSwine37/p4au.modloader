@@ -120,53 +120,7 @@ namespace p4au.modloader
             {
                 target.AddRedirectFolder(Path.Combine(_modLoaderPath, "Redirector"));
                 target.Enable();
-                RemoveDuplicateRedirects(activeModPaths);
             }
-        }
-
-        private void ModLoaded(IModV1 mod, IModConfigV1 modConfig)
-        {
-            if(modConfig.ModId != "p4au.modloader" && modConfig.ModDependencies.Contains("reloaded.universal.redirector"))
-            {
-                RemoveDuplicateRedirects(_modLoader.GetDirectoryForModId(modConfig.ModId));
-            }
-        }
-
-        /// <summary>
-        /// Removes any files that might be redirected instead of those in the mod loader's folder from a list of mod paths (so higher priority mods don't break it)
-        /// </summary>
-        /// <param name="activeModPaths">A List of all of the active mod's paths</param>
-        private void RemoveDuplicateRedirects(List<string> activeModPaths)
-        {
-            foreach (var modDir in activeModPaths)
-            {
-                RemoveDuplicateRedirects(modDir);
-            }
-        }
-
-        /// <summary>
-        ///  Removes any files that might be redirected instead of those in the mod loader's folder (so higher priority mods don't break it)
-        /// </summary>
-        /// <param name="modPath">The path to the mod dir that will be checked for duplicate redirects</param>
-        private void RemoveDuplicateRedirects(string modPath)
-        {
-            string modName = Path.GetFileName(modPath);
-            Utils.LogVerbose($"Removing duplicate redirects from {modName}");
-            _redirectorController.TryGetTarget(out var target);
-            if (target == null)
-                return;
-            string assetPath = Path.Combine(modPath, "Redirector", "asset");
-            if (!Directory.Exists(assetPath))
-                return;
-            string modLoaderAssets = Path.Combine(_modLoaderPath, "Redirector", "asset");
-            foreach (var file in Directory.GetFiles(assetPath))
-            {
-                if (File.Exists(Path.Combine(modLoaderAssets, Path.GetFileName(file))))
-                {
-                    target.RemoveRedirect(file);
-                }
-            }
-            Utils.LogVerbose($"Done removing duplicate redirects from {modName}");
         }
 
         private List<string> GetActiveModPaths()
