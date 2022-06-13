@@ -52,6 +52,8 @@ namespace p4au.modloader
         /// <returns>True if both sets are exactly the same</returns>
         private bool MergeSetIsEqual(Dictionary<string, List<FileHashInfo>> a, Dictionary<string, List<FileHashInfo>> b)
         {
+            if(a.Count == 0)
+                return b.Count == 0;
             foreach(var set in a)
             {
                 if (!b.TryGetValue(set.Key, out var filesB))
