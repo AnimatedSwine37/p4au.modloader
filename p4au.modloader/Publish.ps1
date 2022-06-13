@@ -137,7 +137,7 @@ param (
     # Pick one and configure settings below.
     $UseGitHubDelta = $False,
     $UseGameBananaDelta = $False,
-    $UseNuGetDelta = $False,
+    $UseNuGetDelta = $True,
 
     $GitHubUserName = "",
     $GitHubRepoName = "",
@@ -145,8 +145,8 @@ param (
 
     $GameBananaItemId = 0, # From mod page URL.
 
-    $NuGetPackageId = "",
-    $NuGetFeedUrl = "",
+    $NuGetPackageId = "p4au.modloader",
+    $NuGetFeedUrl = "http://packages.sewer56.moe:5000/v3/index.json",
     $NuGetAllowUnlisted = $False,
 
     ## => User: Publish Config
@@ -178,7 +178,6 @@ Split-Path $MyInvocation.MyCommand.Path | Push-Location
 # Convert Booleans
 $IsPrerelease = [bool]::Parse($IsPrerelease)
 $MakeDelta = [bool]::Parse($MakeDelta)
-$Build = [bool]::Parse($Build)
 $BuildR2R = [bool]::Parse($BuildR2R)
 $UseGitHubDelta = [bool]::Parse($UseGitHubDelta)
 $UseGameBananaDelta = [bool]::Parse($UseGameBananaDelta)
@@ -237,7 +236,7 @@ function Build {
     }
 
     # Cleanup Unnecessary Files
-    Get-ChildItem $publishBuildDirectory -Include *.exe -Recurse | Remove-Item -Force -Recurse
+    # Get-ChildItem $publishBuildDirectory -Include *.exe -Recurse | Remove-Item -Force -Recurse
     Get-ChildItem $publishBuildDirectory -Include *.pdb -Recurse | Remove-Item -Force -Recurse
     Get-ChildItem $publishBuildDirectory -Include *.xml -Recurse | Remove-Item -Force -Recurse
 }

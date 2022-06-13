@@ -3,7 +3,7 @@
   "ModName": "Persona 4 Arena Ultimax Mod Loader",
   "ModAuthor": "AnimatedSwine37",
   "ModVersion": "1.0.0",
-  "ModDescription": "Makes it so pacs are merged when loading mods using universal file redirector",
+  "ModDescription": "Makes it so mods are automatically merged on load. This MUST be the lowest enabled mod on your load order to work correctly",
   "ModDll": "p4au.modloader.dll",
   "ModIcon": "Preview.png",
   "ModR2RManagedDll32": "",

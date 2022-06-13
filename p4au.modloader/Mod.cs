@@ -160,7 +160,9 @@ namespace p4au.modloader
             {
                 // Get the original hash
                 string originalFile = Path.Combine("originals", fileSet.Key);
-                string originalHash = GetFileHash(originalFile);
+                string? originalHash = GetFileHash(originalFile);
+                if (originalHash == null)
+                    continue;
                 // Compare each file to merge with the originals
                 foreach (var file in fileSet.Value)
                 {
@@ -290,7 +292,9 @@ namespace p4au.modloader
             Dictionary<string, FileHashInfo> newHashes = new();
             foreach (var file in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
             {
-                string hash = GetFileHash(file);
+                string? hash = GetFileHash(file);
+                if (hash == null)
+                    continue;
                 string relativePath = GetDataPath(file);
                 if (hashes.ContainsKey(relativePath))
                     hashes[relativePath].Add(new FileHashInfo(file, hash));
@@ -312,7 +316,7 @@ namespace p4au.modloader
         private List<FileHashInfo> GetFileHashes(List<string> files)
         {
             List<FileHashInfo> hashes = new List<FileHashInfo>();
-            Parallel.ForEach(files, file => hashes.Add(new FileHashInfo(file, GetFileHash(file))));
+            Parallel.ForEach(files, file => hashes.Add(new FileHashInfo(file, GetFileHash(file)!)));
             return hashes;
         }
 
@@ -436,8 +440,10 @@ namespace p4au.modloader
             return sb.ToString();
         }
 
-        private string GetFileHash(string file)
+        private string? GetFileHash(string file)
         {
+            if (!File.Exists(file))
+                return null;
             byte[] exeBytes = File.ReadAllBytes(file);
             byte[] hashBytes = new MD5CryptoServiceProvider().ComputeHash(exeBytes);
             return ByteArrayToString(hashBytes);
